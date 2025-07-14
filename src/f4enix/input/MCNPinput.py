@@ -1329,7 +1329,7 @@ class Input:
     def add_cell_fill_u(
         cell: parser.Card,
         param: str,
-        param_value: int,
+        param_value: int | str,
         inplace: bool = True,
     ) -> parser.Card:
         """Adds a u=/fill= keyword parameter to a cell that doesn't have it.
@@ -1361,20 +1361,13 @@ class Input:
 
         cell._Card__f = -1
         cell._Card__u = -1
-        len_param = len(str(param_value))
 
         new_cell = Input._add_symbol_to_cell_input(
             cell,
-            f"{param.lower()}={{:<{len_param}}}",
+            f"{param.lower()}=" + str(param_value),
             inplace=inplace,
             parentheses=False,
         )
-
-        for k in range(len(new_cell.values) - 1, -1, -1):
-            if new_cell.values[k][1] == "sur" or new_cell.values[k][1] == "cel":
-                break
-
-        new_cell.values.insert(k + 1, (param_value, param.lower()))
 
         return new_cell
 
@@ -1411,30 +1404,16 @@ class Input:
         parser.Card
             numjuggler card of the modified cell
         """
-        if add_surface >= 0:
-            template_addition = (
-                UNION_INTERSECT_SYMBOLS[mode]
-                + "{:<"
-                + str(len(str(add_surface)))
-                + "} "
-            )
+
+        if mode.lower() not in ["union", "intersect"]:
+            raise ValueError(f"Invalid mode {mode}. Use 'union' or 'intersect'.")
+        if mode.lower() == "union":
+            add_surface_str = ":" + str(add_surface)
         else:
-            template_addition = (
-                UNION_INTERSECT_SYMBOLS[mode]
-                + "-{:<"
-                + str(len(str(add_surface)) - 1)
-                + "} "
-            )
-
+            add_surface_str = str(add_surface)
         new_cell = Input._add_symbol_to_cell_input(
-            cell, template_addition, inplace=inplace, new_cell_num=new_cell_num
+            cell, add_surface_str, inplace=inplace, new_cell_num=new_cell_num
         )
-
-        for k in range(len(new_cell.values) - 1, -1, -1):
-            if new_cell.values[k][1] == "sur" or new_cell.values[k][1] == "cel":
-                break
-
-        new_cell.values.insert(k + 1, (abs(add_surface), "sur"))
 
         return new_cell
 
@@ -1458,16 +1437,10 @@ class Input:
         inplace : bool, optional
             if False a deepcopy is created. By default is True.
         """
-        template_addition = "#{:<" + str(len(str(hash_id)) - 1) + "} "
+        template_addition = f"#{hash_id} "
         new_cell = Input._add_symbol_to_cell_input(
             cell, template_addition, inplace=inplace, new_cell_num=new_cell_num
         )
-        # add the hash cell to the cell values
-        for k in range(len(new_cell.values) - 1, -1, -1):
-            if new_cell.values[k][1] == "sur" or new_cell.values[k][1] == "cel":
-                break
-
-        new_cell.values.insert(k + 1, (hash_id, "cel"))
 
         return new_cell
 
@@ -1523,9 +1496,6 @@ class Input:
                 parentheses=True,
                 new_cell_num=new_cell_num,
             )
-            cell_lines = new_cell.card(wrap=True).splitlines(keepends=True)
-            new_cell = parser.Card(cell_lines, 3, new_cell.pos)
-            new_cell.get_values()
 
         for cell_num in cell_num_list:
             self.cells.pop(cell_num)
@@ -1583,7 +1553,15 @@ class Input:
             new_cell.name = new_cell_num
             new_cell._set_value_by_type("cel", new_cell_num)
 
-        return new_cell
+        cell_lines = new_cell.card(wrap=True).splitlines(keepends=True)
+        updated_cell = parser.Card(cell_lines, 3, new_cell.pos)
+        updated_cell.get_values()
+
+        if inplace:
+            cell.__dict__.update(updated_cell.__dict__)
+            return cell
+        else:
+            return updated_cell
 
     @staticmethod
     def remove_u(cell: parser.Card) -> None:
@@ -1771,6 +1749,80 @@ class Input:
                 new_cell = parser.Card(cell_lines, 3, cell.pos)
                 new_cell.get_values()
                 self.cells[key] = new_cell
+
+    def remove_tallies(self, tally_ids: list[int] | None) -> None:
+        """Remove tallies from the input.
+
+        Parameters
+        ----------
+        tally_ids : list[int]
+            list of tally IDs to be removed
+        """
+        pattern = re.compile(
+            r"^(F|FMESH|FC|FM|SD|DE|DF|E|T|C|FQ|EM|CM|TM|FS|FU|FT)(\d+)", re.IGNORECASE
+        )
+        cards_to_remove = []
+
+        if tally_ids is None:
+            # Remove all tally-related cards
+            for key in list(self.other_data.keys()):
+                if pattern.match(key):
+                    cards_to_remove.append(key)
+        else:
+            # Remove only cards matching the provided tally IDs
+            for key in list(self.other_data.keys()):
+                m = pattern.match(key)
+                if m:
+                    num = int(m.group(2))
+                    if num in tally_ids:
+                        cards_to_remove.append(key)
+
+        for key in cards_to_remove:
+            del self.other_data[key]
+
+    def remove_sdef(self) -> None:
+        """Remove the SDEF card and related source definition cards from the input."""
+        keys_to_remove = []
+        for key in list(self.other_data.keys()):
+            key_lower = key.lower()
+            if key_lower.startswith(("sdef", "kcode", "ssr")) or key_lower[:2] in (
+                "si",
+                "sd",
+                "ds",
+                "sp",
+            ):
+                keys_to_remove.append(key)
+        for key in keys_to_remove:
+            del self.other_data[key]
+
+    def prepare_void_check(
+        self, surf: parser.Card, nps: float, particle: str = "N"
+    ) -> None:
+        """Prepare the input for the void check by removing the fill cards
+        and adding a surface to the void cell.
+
+        Parameters
+        ----------
+        surf : parser.Card
+            surface to be added to the void cell
+        """
+        if surf.ctype != 4:
+            raise ValueError("The provided surface is not a surface card")
+        if surf.stype.lower() not in ["so", "sx", "sy", "sz", "s"]:
+            raise ValueError("The provided surface is not a sphere")
+        self.surfs[str(surf.name)] = surf
+        radius = surf.scoefs[-1]
+        weight = np.pi * radius**2
+        # remove all fill cards from the input cells
+        self.remove_sdef()
+        self.remove_tallies(None)
+        self.other_data["VOID"] = parser.Card(["VOID\n"], 5, -1)
+        self.other_data["NPS"] = parser.Card([f"NPS {int(nps)}\n"], 5, -1)
+        self.other_data["SDEF"] = parser.Card(
+            [f"SDEF PAR={particle} NRM=-1 SUR={surf.name} WGT={weight} DIR=d1"], -5, -1
+        )
+        self.other_data["SI1"] = parser.Card(["SI1 0 1\n"], -5, -1)
+        self.other_data["SP1"] = parser.Card(["SP1 -21 1\n"], -5, -1)
 
 
 class D1S_Input(Input):
@@ -2082,7 +2134,7 @@ class D1S_Input(Input):
         self.other_data[key] = card  # should override other PKMT cards
 
     def add_track_contribution(
-        self, tallykey: str, zaids: list[str], who: str = "parent"
+        self, tallykey: str, bins: list[str], who: str = "parent"
     ):
         """
         Given a list of zaid add the FU bin in the requested tallies in order
@@ -2092,10 +2144,10 @@ class D1S_Input(Input):
         ----------
         tallykey : str
             ID of the tally onto which to operate (e.g. F4).
-        zaids : list[str]
-            list of zaid numbers of the parents/daughters (e.g. 1001).
+        bins : list[str]
+            list of zaid/cell numbers of the parents/daughters (e.g. 1001).
         who : str, optional
-            either 'parent' or 'daughter' specifies the types of zaids to
+            either 'parent', 'daughter' or 'cell', specifies the types of bin to
             be tracked. The default is 'parent'.
 
         Raises
@@ -2115,14 +2167,87 @@ class D1S_Input(Input):
         card.lines.append("FU" + num + " 0\n")
 
         if who == "parent":
-            for zaid in zaids:
+            for zaid in bins:
                 card.lines.append(ADD_LINE_FORMAT.format("-" + str(zaid)))
-        elif who == "daughter":
-            for zaid in zaids:
+        elif who in ["daughter", "cell"]:
+            for zaid in bins:
                 card.lines.append(ADD_LINE_FORMAT.format(zaid))
+            if who == "cell":
+                self.other_data["FT" + num + " SCD"] = parser.Card(
+                    ["FT" + num + " SCD"], 5, -1
+                )
         else:
             raise ValueError(who + ' is not an admissible "who" parameters')
         card.get_input()
+
+    def add_daughter_contribution_from_irr(self, tallykey: str):
+        """Add the daughter contribution to the tally. All the daughters
+        listed in the irradiation file will be added to the tally.
+
+        Parameters
+        ----------
+        tallykey : str
+            ID of the tally onto which to operate (e.g. F4).
+
+        Raises
+        ------
+        ValueError
+            if no irradiation file has been assigned to the input.
+        """
+        if self.irrad_file is None:
+            raise ValueError("No irradiation file has been assigned to the input")
+        daughters = self.irrad_file.get_daughters()
+        self.add_track_contribution(tallykey, daughters, who="daughter")
+
+    def add_parent_contribution_from_irr(self, tallykey: str):
+        """Add the parent contribution to the tally. All the parents
+        listed in the reaction file will be added to the tally.
+
+        Parameters
+        ----------
+        tallykey : str
+            ID of the tally onto which to operate (e.g. F4).
+
+        Raises
+        ------
+        ValueError
+            if no reaction file has been assigned to the input.
+        """
+
+        if self.reac_file is None:
+            raise ValueError("No reaction file has been assigned to the input")
+        parents = list(self.reac_file.get_parents())
+        self.add_track_contribution(tallykey, parents, who="parent")
+
+    def add_SDDR_dose_function(self, tallykey: str) -> None:
+        """Add the SDDR dose function to the tally.
+
+        Parameters
+        ----------
+        tallykey : str
+            ID of the tally onto which to operate (e.g. F4).
+        """
+
+        card = self.other_data[tallykey]
+        num = str(_get_num_tally(tallykey))
+
+        card.lines.append("FU" + num + " 0\n")
+
+        dose_function_de = [
+            f"DE{num}   0.01 0.015 0.02 0.03  0.04 0.05\n",
+            "     0.06 0.07  0.08 0.10  0.15 0.20\n",
+            "     0.3  0.4   0.5  0.6   0.8  1.0\n",
+            "     2.0  4.0   6.0  8.0  10.0\n",
+        ]
+        dose_function_df = [
+            f"DF{num}   0.0485  0.1254  0.2050  0.2999  0.3381 0.3572\n",
+            "     0.3780  0.4066  0.4399  0.5172  0.7523 1.0041\n",
+            "     1.5083  1.9958  2.4657  2.9082  3.7269 4.4834\n",
+            "     7.4896 12.0153 15.9873 19.9191 23.7600\n",
+        ]
+        self.other_data[f"DE{num}"] = parser.Card(dose_function_de, 5, -1)
+        self.other_data[f"DF{num}"] = parser.Card(dose_function_df, 5, -1)
+        self.other_data[f"FM{num}"] = parser.Card([f"FM{num} 7.103E+16\n"], 5, -1)
 
 
 def _get_input_arguments(inputfile: os.PathLike | str) -> tuple:
