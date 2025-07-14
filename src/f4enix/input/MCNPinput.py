@@ -1553,15 +1553,13 @@ class Input:
             new_cell.name = new_cell_num
             new_cell._set_value_by_type("cel", new_cell_num)
 
-        cell_lines = new_cell.card(wrap=True).splitlines(keepends=True)
-        updated_cell = parser.Card(cell_lines, 3, new_cell.pos)
-        updated_cell.get_values()
+        new_cell.lines = new_cell.card(wrap=True, comment=True).splitlines(
+            keepends=True
+        )
+        new_cell.get_input()
+        new_cell.get_values()
 
-        if inplace:
-            cell.__dict__.update(updated_cell.__dict__)
-            return cell
-        else:
-            return updated_cell
+        return new_cell
 
     @staticmethod
     def remove_u(cell: parser.Card) -> None:
@@ -2199,7 +2197,7 @@ class D1S_Input(Input):
         daughters = self.irrad_file.get_daughters()
         self.add_track_contribution(tallykey, daughters, who="daughter")
 
-    def add_parent_contribution_from_irr(self, tallykey: str):
+    def add_parent_contribution_from_reac(self, tallykey: str):
         """Add the parent contribution to the tally. All the parents
         listed in the reaction file will be added to the tally.
 
@@ -2235,19 +2233,18 @@ class D1S_Input(Input):
 
         dose_function_de = [
             f"DE{num}   0.01 0.015 0.02 0.03  0.04 0.05\n",
-            "     0.06 0.07  0.08 0.10  0.15 0.20\n",
-            "     0.3  0.4   0.5  0.6   0.8  1.0\n",
-            "     2.0  4.0   6.0  8.0  10.0\n",
+            "        0.06 0.07  0.08 0.10  0.15 0.20\n",
+            "        0.3  0.4   0.5  0.6   0.8  1.0\n",
+            "        2.0  4.0   6.0  8.0  10.0\n",
         ]
         dose_function_df = [
             f"DF{num}   0.0485  0.1254  0.2050  0.2999  0.3381 0.3572\n",
-            "     0.3780  0.4066  0.4399  0.5172  0.7523 1.0041\n",
-            "     1.5083  1.9958  2.4657  2.9082  3.7269 4.4834\n",
-            "     7.4896 12.0153 15.9873 19.9191 23.7600\n",
+            "        0.3780  0.4066  0.4399  0.5172  0.7523 1.0041\n",
+            "        1.5083  1.9958  2.4657  2.9082  3.7269 4.4834\n",
+            "        7.4896 12.0153 15.9873 19.9191 23.7600\n",
         ]
         self.other_data[f"DE{num}"] = parser.Card(dose_function_de, 5, -1)
         self.other_data[f"DF{num}"] = parser.Card(dose_function_df, 5, -1)
-        self.other_data[f"FM{num}"] = parser.Card([f"FM{num} 7.103E+16\n"], 5, -1)
 
 
 def _get_input_arguments(inputfile: os.PathLike | str) -> tuple:

@@ -35,7 +35,7 @@ class TestElite_Input:
         # re-read
         inp_sec1 = Input.from_input(outfile)
         assert ") 427024 ) 427016" in inp_sec1.cells["800"].lines[1]
-        assert ") :-427024 ) :-427016" in inp_sec1.cells["801"].lines[17]
+        assert ") :-427024 ) :-427016" in inp_sec1.cells["801"].lines[1]
         pbc_surfs = ["*7", "*8", "*427016", "*427024"]
         assert set(pbc_surfs).issubset(set(inp_sec1.surfs.keys()))
         assert inp_sec1.surfs["*7"].scoefs[3] == inp.surfs["7"].scoefs[3]
@@ -57,7 +57,7 @@ class TestElite_Input:
 
         inp_NBI = Input.from_input(outfile)
         assert ") -437544 ) 437543" in inp_NBI.cells["800"].lines[1]
-        assert ") :437544 ) :-437543" in inp_NBI.cells["801"].lines[17]
+        assert ") :437544 ) :-437543" in inp_NBI.cells["801"].lines[1]
         pbc_surfs = ["*7", "*18", "*437543", "*437544"]
         assert set(pbc_surfs).issubset(set(inp_NBI.surfs.keys()))
         assert inp_NBI.surfs["*7"].scoefs[3] == inp.surfs["7"].scoefs[3]
@@ -80,7 +80,7 @@ class TestElite_Input:
         inp_secs6_7 = Input.from_input(outfile)
 
         assert ") 467024 ) 475016" in inp_secs6_7.cells["800"].lines[1]
-        assert ") :-467024 ) :-475016" in inp_secs6_7.cells["801"].lines[17]
+        assert ") :-467024 ) :-475016" in inp_secs6_7.cells["801"].lines[1]
         pbc_surfs = ["*20", "*22", "*467024", "*475016"]
         assert "21" in inp_secs6_7.surfs.keys()
         assert inp_secs6_7.surfs["21"].scoefs[3] == inp.surfs["21"].scoefs[3]
