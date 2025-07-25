@@ -1754,7 +1754,8 @@ class Input:
         Parameters
         ----------
         tally_ids : list[int]
-            list of tally IDs to be removed
+            list of tally IDs to be removed. Default is None, which means
+            that all tallies will be removed.
         """
         pattern = re.compile(
             r"^(F|FMESH|FC|FM|SD|DE|DF|E|T|C|FQ|EM|CM|TM|FS|FU|FT)(\d+)", re.IGNORECASE
@@ -1794,15 +1795,30 @@ class Input:
             del self.other_data[key]
 
     def prepare_void_check(
-        self, surf: parser.Card, nps: float, particle: str = "N"
+        self, surf: parser.Card, nps: int, particle: str = "N"
     ) -> None:
-        """Prepare the input for the void check by removing the fill cards
-        and adding a surface to the void cell.
+        """Prepare the input for a void check:
+        - remove previous SDEF and tallies
+        - set the sphere surface as source, inward, with correct weight
+        - set the NPS card
+        - set void card
+
 
         Parameters
         ----------
         surf : parser.Card
-            surface to be added to the void cell
+            surface card defining the sphere to be used as source.
+        nps : float
+            number of particles to be simulated in the void check.
+        particle : str, optional
+            particles to be transported, by default "N"
+
+        Raises
+        ------
+        ValueError
+           if the provided card is not a surface
+        ValueError
+            if the provided surface is not a sphere
         """
         if surf.ctype != 4:
             raise ValueError("The provided surface is not a surface card")
@@ -1815,7 +1831,7 @@ class Input:
         self.remove_sdef()
         self.remove_tallies(None)
         self.other_data["VOID"] = parser.Card(["VOID\n"], 5, -1)
-        self.other_data["NPS"] = parser.Card([f"NPS {int(nps)}\n"], 5, -1)
+        self.other_data["NPS"] = parser.Card([f"NPS {nps}\n"], 5, -1)
         self.other_data["SDEF"] = parser.Card(
             [f"SDEF PAR={particle} NRM=-1 SUR={surf.name} WGT={weight} DIR=d1"], -5, -1
         )
@@ -2152,11 +2168,6 @@ class D1S_Input(Input):
         ------
         ValueError
             check for admissible who parameter.
-
-        Returns
-        -------
-        bool
-            return True if lines were added correctly
 
         """
         card = self.other_data[tallykey]
