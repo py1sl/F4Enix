@@ -1748,7 +1748,7 @@ class Input:
                 new_cell.get_values()
                 self.cells[key] = new_cell
 
-    def remove_tallies(self, tally_ids: list[int] | None) -> None:
+    def remove_tallies(self, tally_ids: list[int] | None = None) -> None:
         """Remove tallies from the input.
 
         Parameters
