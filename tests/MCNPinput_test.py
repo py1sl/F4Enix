@@ -5,6 +5,7 @@ from importlib.resources import as_file, files
 import numpy as np
 import pandas as pd
 import pytest
+from numjuggler import parser
 
 import f4enix.resources as pkg_res
 import tests.resources.input as input_res
@@ -12,7 +13,6 @@ import tests.resources.libmanager as lib_res
 from f4enix.input.d1suned import IrradiationFile, ReactionFile
 from f4enix.input.libmanager import LibManager
 from f4enix.input.MCNPinput import D1S_Input, Input
-from numjuggler import parser
 
 resources_inp = files(input_res)
 resources_lib = files(lib_res)
