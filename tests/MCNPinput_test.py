@@ -725,7 +725,7 @@ C a breaking comment
         with pytest.raises(ValueError):
             inp.prepare_void_check(surface, 100)
 
-        surface = parser.Card(["1 SO 10\n"], 4, -1)
+        surface = parser.Card(["12345 SO 10\n"], 4, -1)
         surface.get_values()
         particle = "P"
         inp.prepare_void_check(surface, 100, particle=particle)

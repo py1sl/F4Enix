@@ -2187,8 +2187,8 @@ class D1S_Input(Input):
             for zaid in bins:
                 card.lines.append(ADD_LINE_FORMAT.format(zaid))
             if who == "cell":
-                self.other_data["FT" + num + " SCD"] = parser.Card(
-                    ["FT" + num + " SCD"], 5, -1
+                self.other_data["FT" + num] = parser.Card(
+                    ["FT" + num + " SCD\n"], 5, -1
                 )
         else:
             raise ValueError(who + ' is not an admissible "who" parameters')
