@@ -11,7 +11,7 @@ import tests.resources.input as input_res
 import tests.resources.libmanager as lib_res
 from f4enix.input.d1suned import IrradiationFile, ReactionFile
 from f4enix.input.libmanager import LibManager
-from f4enix.input.MCNPinput import D1S_Input, Input
+from f4enix.input.MCNPinput import D1S_Input, Input, get_formatted_range
 
 resources_inp = files(input_res)
 resources_lib = files(lib_res)
@@ -767,3 +767,9 @@ class TestD1S_Input:
             card.lines[-3:], ["FU124 0", sign + "1001", sign + "1002"]
         ):
             assert line.strip() == exp
+
+    def test_get_formatted_range(self):
+        result = get_formatted_range([1, 2, 3, 4, 5, 7, 12, 13, 21, 22, 23])
+        assert result == "1 3I 5 7 12 13 21 22 23 "
+        result = get_formatted_range([1])
+        assert result == "1 "

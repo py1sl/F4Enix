@@ -2172,3 +2172,46 @@ def _get_card_key(card: parser.Card) -> str:
 
     # if this point is reached the name has not been found
     raise ValueError(f"No key was found for card {card.card()}")
+
+
+def get_formatted_range(numbers: list[int]) -> str:
+    """Format a range of integers into a compact string that makes use of the interval
+    syntax in MCNP.
+
+    Parameters
+    ----------
+    current_range : list[int]
+        List of cell or surface ids to be formatted.
+
+    Returns
+    -------
+    str
+        Formatted string representing the range of ids.
+    """
+    numbers = sorted(numbers)
+    result = ""
+    current_range = [numbers[0]]
+    for number in numbers[1:]:
+        if number == current_range[-1] + 1:
+            current_range.append(number)
+        else:
+            result += _convert_range_to_string(current_range)
+            current_range = [number]
+    # Handle the last range
+    result += _convert_range_to_string(current_range)
+    return result
+
+
+def _convert_range_to_string(current_range: list[int]) -> str:
+    result = ""
+    if len(current_range) == 1:
+        result += f"{current_range[0]} "
+    elif len(current_range) == 2:
+        result += f"{current_range[0]} {current_range[1]} "
+    elif len(current_range) == 3:
+        result += f"{current_range[0]} {current_range[1]} {current_range[2]} "
+    else:
+        result += f"{current_range[0]} "
+        result += f"{current_range[-1] - current_range[0] - 1}I "
+        result += f"{current_range[-1]} "
+    return result
