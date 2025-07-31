@@ -870,3 +870,15 @@ class TestD1S_Input:
                 assert line.strip() == "FU124 0"
             else:
                 assert line.strip() in daughters
+
+    def test_add_SDDR_dose_function(self):
+        tallyID = "F14"
+        inp = deepcopy(self.inp)
+        inp.add_SDDR_dose_function(tallyID)
+        assert "DE14" in inp.other_data
+        assert "DF14" in inp.other_data
+        assert "DE14 0.01 0.015 0.02 0.03 0.04 0.05" in inp.other_data["DE14"].lines[0]
+        assert (
+            "DF14 0.0485 0.1254 0.2050 0.2999 0.3381 0.3572"
+            in inp.other_data["DF14"].lines[0]
+        )

@@ -38,6 +38,7 @@ from f4enix.constants import (
     PAT_F_TR_CARD_KEY,
     PAT_FMESH_KEY,
     PAT_NP,
+    PAT_ALL_TALLY_KEYS,
     UNION_INTERSECT_SYMBOLS,
 )
 from f4enix.input.auxiliary import debug_file_unicode
@@ -1757,20 +1758,17 @@ class Input:
             list of tally IDs to be removed. Default is None, which means
             that all tallies will be removed.
         """
-        pattern = re.compile(
-            r"^(F|FMESH|FC|FM|SD|DE|DF|E|T|C|FQ|EM|CM|TM|FS|FU|FT)(\d+)", re.IGNORECASE
-        )
         cards_to_remove = []
 
         if tally_ids is None:
             # Remove all tally-related cards
             for key in list(self.other_data.keys()):
-                if pattern.match(key):
+                if PAT_ALL_TALLY_KEYS.match(key):
                     cards_to_remove.append(key)
         else:
             # Remove only cards matching the provided tally IDs
             for key in list(self.other_data.keys()):
-                m = pattern.match(key)
+                m = PAT_ALL_TALLY_KEYS.match(key)
                 if m:
                     num = int(m.group(2))
                     if num in tally_ids:
@@ -1824,6 +1822,10 @@ class Input:
             raise ValueError("The provided surface is not a surface card")
         if surf.stype.lower() not in ["so", "sx", "sy", "sz", "s"]:
             raise ValueError("The provided surface is not a sphere")
+        if str(surf.name) in self.surfs:
+            raise ValueError(
+                f"The provided surface {surf.name} is already in the input"
+            )
         self.surfs[str(surf.name)] = surf
         radius = surf.scoefs[-1]
         weight = np.pi * radius**2
@@ -2243,15 +2245,15 @@ class D1S_Input(Input):
         card.lines.append("FU" + num + " 0\n")
 
         dose_function_de = [
-            f"DE{num}   0.01 0.015 0.02 0.03  0.04 0.05\n",
-            "        0.06 0.07  0.08 0.10  0.15 0.20\n",
-            "        0.3  0.4   0.5  0.6   0.8  1.0\n",
-            "        2.0  4.0   6.0  8.0  10.0\n",
+            f"DE{num} 0.01 0.015 0.02 0.03 0.04 0.05\n",
+            "        0.06 0.07 0.08 0.10 0.15 0.20\n",
+            "        0.3 0.40.5 0.6 0.8 1.0\n",
+            "        2.0 4.0 6.0 8.0 10.0\n",
         ]
         dose_function_df = [
-            f"DF{num}   0.0485  0.1254  0.2050  0.2999  0.3381 0.3572\n",
-            "        0.3780  0.4066  0.4399  0.5172  0.7523 1.0041\n",
-            "        1.5083  1.9958  2.4657  2.9082  3.7269 4.4834\n",
+            f"DF{num} 0.0485 0.1254 0.2050 0.2999 0.3381 0.3572\n",
+            "        0.3780 0.4066 0.4399 0.5172 0.7523 1.0041\n",
+            "        1.5083 1.9958 2.4657 2.9082 3.7269 4.4834\n",
             "        7.4896 12.0153 15.9873 19.9191 23.7600\n",
         ]
         self.other_data[f"DE{num}"] = parser.Card(dose_function_de, 5, -1)
