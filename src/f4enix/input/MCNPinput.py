@@ -1036,6 +1036,9 @@ class Input:
             # handle the TF edge case
             if "TF" in key.upper():
                 newkey = "T" + newkey
+            # and the DF case
+            elif "DF" in key.upper():
+                newkey = "D" + newkey
         except AttributeError:
             logging.debug("the following key was not cleaned: " + key)
             newkey = key
