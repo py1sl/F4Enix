@@ -739,6 +739,12 @@ C a breaking comment
             in newinp.other_data["SDEF"].lines[0]
         )
 
+    def test_get_formatted_range(self):
+        result = get_formatted_range([1, 2, 3, 4, 5, 7, 12, 13, 21, 22, 23])
+        assert result == "1 3I 5 7 12 13 21 22 23 "
+        result = get_formatted_range([1])
+        assert result == "1 "
+
 
 class TestD1S_Input:
     with (
@@ -882,9 +888,3 @@ class TestD1S_Input:
             "DF14 0.0485 0.1254 0.2050 0.2999 0.3381 0.3572"
             in inp.other_data["DF14"].lines[0]
         )
-
-    def test_get_formatted_range(self):
-        result = get_formatted_range([1, 2, 3, 4, 5, 7, 12, 13, 21, 22, 23])
-        assert result == "1 3I 5 7 12 13 21 22 23 "
-        result = get_formatted_range([1])
-        assert result == "1 "
