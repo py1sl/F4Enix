@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO, Literal, Self
+from typing import BinaryIO, Literal
 
 import numpy as np
 import polars as pl
@@ -221,7 +221,7 @@ class RSSAPlot:
             raise ValueError("Y bins are not set. Call set_bins() or calculate_bins().")
         return self._y_bins
 
-    def set_particle(self, particle_type: Literal["n", "p"]) -> Self:
+    def set_particle(self, particle_type: Literal["n", "p"]) -> "RSSAPlot":
         """Set the particle type to filter the tracks."""
         if particle_type == "n":
             self.tracks = self.tracks.filter(pl.col("b") == NEUTRON_INDICATOR)
@@ -229,7 +229,7 @@ class RSSAPlot:
             self.tracks = self.tracks.filter(pl.col("b") != NEUTRON_INDICATOR)
         return self
 
-    def set_surface_ids(self, surface_ids: list[int]) -> Self:
+    def set_surface_ids(self, surface_ids: list[int]) -> "RSSAPlot":
         """Set the surface IDs to filter the tracks."""
         valid_surface_ids = [s.id for s in self.rssa_parameters.surfaces]
         if not all(sid in valid_surface_ids for sid in surface_ids):
@@ -239,14 +239,14 @@ class RSSAPlot:
         self.tracks = self.tracks.filter(pl.col("c").is_in(surface_ids))
         return self
 
-    def set_z_limits(self, vmin: float, vmax: float) -> Self:
+    def set_z_limits(self, vmin: float, vmax: float) -> "RSSAPlot":
         """Set the z limits for the plot."""
         self.tracks = self.tracks.filter(
             pl.col("z").is_between(vmin, vmax, closed="both")
         )
         return self
 
-    def set_perimeter_limits(self, vmin: float, vmax: float) -> Self:
+    def set_perimeter_limits(self, vmin: float, vmax: float) -> "RSSAPlot":
         """Set the limits for the perimeter positions."""
         if "perimeter_pos" not in self.tracks.collect_schema().names():
             self.calculate_perimeter_positions()
@@ -255,20 +255,20 @@ class RSSAPlot:
         )
         return self
 
-    def calculate_perimeter_positions(self) -> Self:
+    def calculate_perimeter_positions(self) -> "RSSAPlot":
         radius = (pl.col("x").pow(2) + pl.col("y").pow(2)).sqrt().mean()
         thetas = pl.arctan2(pl.col("y"), pl.col("x"))
         perimeter_pos = (thetas * radius).alias("perimeter_pos")
         self.tracks = self.tracks.with_columns(perimeter_pos)
         return self
 
-    def set_bins(self, x_bins: Sequence[float], y_bins: Sequence[float]) -> Self:
+    def set_bins(self, x_bins: Sequence[float], y_bins: Sequence[float]) -> "RSSAPlot":
         """Set the x and y bins for the plot."""
         self._x_bins = pl.Series("x_bins", x_bins).sort()
         self._y_bins = pl.Series("y_bins", y_bins).sort()
         return self
 
-    def calculate_bins(self, bin_width: float = 10.0) -> Self:
+    def calculate_bins(self, bin_width: float = 10.0) -> "RSSAPlot":
         """Automatically calculate the bins for the x and y coordinates of the plot by
         giving a bin width in cm. Instead use `set_bins()` to apply custom bins."""
         self._ensure_that_columns_are_set()
@@ -291,7 +291,7 @@ class RSSAPlot:
         ):
             self.calculate_perimeter_positions()
 
-    def get_particle_current(self, source_intensity: float) -> Self:
+    def get_particle_current(self, source_intensity: float) -> "RSSAPlot":
         """Calculate the particle current from the tracks. It automatically divides the
         weight by the nps value."""
         self.apply_source_intensity(source_intensity)
@@ -300,7 +300,7 @@ class RSSAPlot:
         self.raster = raster / calculate_areas(self.x_bins, self.y_bins)
         return self
 
-    def get_particle_current_errors(self) -> Self:
+    def get_particle_current_errors(self) -> "RSSAPlot":
         """Calculate the particle current errors from the tracks as the square root of
         the number of tracks in each bin.
         """
@@ -308,14 +308,14 @@ class RSSAPlot:
         self.raster = 1 / (raster**0.5)
         return self
 
-    def apply_source_intensity(self, source_intensity: float) -> Self:
+    def apply_source_intensity(self, source_intensity: float) -> "RSSAPlot":
         """Apply a source intensity to the weights of the tracks."""
         self.tracks = self.tracks.with_columns(
             (pl.col("wgt") * source_intensity).alias("wgt")
         )
         return self
 
-    def divide_by_nps(self) -> Self:
+    def divide_by_nps(self) -> "RSSAPlot":
         """Divide the weights by the number of histories. The nps value used is the one
         read in the header abs(np1)."""
         self.tracks = self.tracks.with_columns(
@@ -323,12 +323,12 @@ class RSSAPlot:
         )
         return self
 
-    def set_plot_parameters(self, plot_parameters: PlotParameters) -> Self:
+    def set_plot_parameters(self, plot_parameters: PlotParameters) -> "RSSAPlot":
         """Set the plot parameters for the plot."""
         self.plot_parameters = plot_parameters
         return self
 
-    def get_ratio_to(self, other: Self) -> Self:
+    def get_ratio_to(self, other: "RSSAPlot") -> "RSSAPlot":
         """Calculate the ratio of the current to another RSSAPlot instance in %
         difference. Calculated as (other - self) / self * 100. The other RSSAPlot
         instance should have undergone the same processing as the current one."""
@@ -372,7 +372,7 @@ class RSSAPlot:
         ax.set_ylabel(self.plot_parameters.ylabel)
         return fig, ax
 
-    def save_figure(self, out_path: Path | str) -> Self:
+    def save_figure(self, out_path: Path | str) -> "RSSAPlot":
         """Save the figure to the specified path."""
         _fig, _ax = self.get_plot()
 
@@ -382,7 +382,7 @@ class RSSAPlot:
         plt.savefig(out_path, dpi=300, bbox_inches="tight")
         return self
 
-    def show(self) -> Self:
+    def show(self) -> "RSSAPlot":
         """Show the plot."""
         _fig, _ax = self.get_plot()
         plt.show()
