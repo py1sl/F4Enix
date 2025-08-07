@@ -44,7 +44,7 @@ class _FileParameters:
 
 
 class RSSA:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path | str):
         """Representation of a RSSA file.
 
         Parameters
@@ -98,7 +98,7 @@ class RSSA:
         The simulation that produced this RSSA run 100000 histories.
         The amount of independent histories that reached the RSSA surfaces was 70797.
         """
-        self.path = path
+        self.path = Path(path)
         with open(path, "rb") as infile:
             self.parameters = _parse_header(infile)
             self.tracks = _parse_tracks(infile)
@@ -143,16 +143,35 @@ class RSSA:
         """Returns the photon tracks from the RSSA file."""
         return self.tracks.filter(pl.col("b") != NEUTRON_INDICATOR)
 
-    def plot_current_on_cyl(
-        self,
-        particle_type: Literal["n", "p"] = "n",
-        bin_width: float = 10.0,
-        surface_ids: list[int] | None = None,
-        source_intensity: float = 1.0,
-        z_limits: tuple[float, float] | None = None,
-        perimeter_limits: tuple[float, float] | None = None,
-    ) -> None:
-        raise NotImplementedError
+    @property
+    def x(self) -> pl.Series:
+        """Returns the x coordinates of the tracks."""
+        return self.tracks["x"]
+
+    @property
+    def y(self) -> pl.Series:
+        """Returns the y coordinates of the tracks."""
+        return self.tracks["y"]
+
+    @property
+    def z(self) -> pl.Series:
+        """Returns the z coordinates of the tracks."""
+        return self.tracks["z"]
+
+    @property
+    def energies(self) -> pl.Series:
+        """Returns the energies of the tracks."""
+        return self.tracks["erg"]
+
+    @property
+    def wgt(self) -> pl.Series:
+        """Returns the weights of the tracks."""
+        return self.tracks["wgt"].abs()
+
+    @property
+    def histories(self) -> pl.Series:
+        """Returns the history numbers of the tracks."""
+        return self.tracks["a"]
 
     def plot_plane(self) -> "RSSAPlot":
         """Returns an instance of RSSAPlot to plot the RSSA data assumin an XY plane."""
@@ -169,7 +188,7 @@ class PlotParameters:
     title: str = ""
     xlabel: str = "X [cm]"
     ylabel: str = "Y [cm]"
-    legend_label: str = "Particle current [#/cm2/s]"
+    legend_label: str = ""
     legend_orientation: Literal["vertical", "horizontal"] = "horizontal"
     number_of_colors: int = 10
     norm: Literal["linear", "log"] = "log"
@@ -286,7 +305,7 @@ class RSSAPlot:
         the number of tracks in each bin.
         """
         raster = self._get_2d_grid_of_weights(agg_func="count")
-        self.raster = raster**0.5
+        self.raster = 1 / (raster**0.5)
         return self
 
     def apply_source_intensity(self, source_intensity: float) -> Self:
@@ -309,7 +328,21 @@ class RSSAPlot:
         self.plot_parameters = plot_parameters
         return self
 
+    def get_ratio_to(self, other: Self) -> Self:
+        """Calculate the ratio of the current to another RSSAPlot instance in %
+        difference. Calculated as (other - self) / self * 100. The other RSSAPlot
+        instance should have undergone the same processing as the current one."""
+        if self.raster is None or other.raster is None:
+            raise ValueError(
+                "Raster data is not calculated. Call get_particle_current()"
+                " or other first for both `self` and `other`."
+            )
+        self.raster = (other.raster - self.raster) / self.raster * 100
+        return self
+
     def get_plot(self) -> tuple[Figure, Axes]:
+        """Returns the Matplotlib figure and axes of the plot for further manual
+        customization."""
         if self.raster is None:
             raise ValueError(
                 "Raster data is not calculated. Call get_particle_current()"
@@ -341,7 +374,7 @@ class RSSAPlot:
 
     def save_figure(self, out_path: Path | str) -> Self:
         """Save the figure to the specified path."""
-        fig, ax = self.get_plot()
+        _fig, _ax = self.get_plot()
 
         out_path = Path(out_path)
         if out_path.suffix != ".png":
@@ -351,7 +384,7 @@ class RSSAPlot:
 
     def show(self) -> Self:
         """Show the plot."""
-        fig, ax = self.get_plot()
+        _fig, _ax = self.get_plot()
         plt.show()
         return self
 
@@ -400,7 +433,6 @@ class RSSAPlot:
             .collect()
         )
         raster = _get_raster(grid, self.x_bins, self.y_bins)
-
         return raster
 
 
