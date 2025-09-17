@@ -5,13 +5,14 @@ from importlib.resources import as_file, files
 import numpy as np
 import pandas as pd
 import pytest
+from numjuggler import parser
 
 import f4enix.resources as pkg_res
 import tests.resources.input as input_res
 import tests.resources.libmanager as lib_res
 from f4enix.input.d1suned import IrradiationFile, ReactionFile
 from f4enix.input.libmanager import LibManager
-from f4enix.input.MCNPinput import D1S_Input, Input
+from f4enix.input.MCNPinput import D1S_Input, Input, get_formatted_range
 
 resources_inp = files(input_res)
 resources_lib = files(lib_res)
@@ -679,6 +680,71 @@ C a breaking comment
             == pytest.approx(0.999978)
         )
 
+    def test_remove_tallies(self, tmpdir):
+        with as_file(resources_inp.joinpath("test.i")) as FILE1:
+            inp = Input.from_input(FILE1)
+        inp.remove_tallies()
+        assert "F94" not in inp.other_data
+        assert "F54" not in inp.other_data
+
+        # check that the file can be written and read again
+        outfile = tmpdir.mkdir("sub").join("test_tallies_removed.i")
+        inp.write(outfile)
+        newinp = Input.from_input(outfile)
+        assert "F94" not in newinp.other_data
+        assert "F54" not in newinp.other_data
+
+        with as_file(resources_inp.joinpath("test.i")) as FILE2:
+            inp2 = Input.from_input(FILE2)
+        inp2.remove_tallies([94])
+        assert "F94" not in inp2.other_data
+        assert "F54" in inp2.other_data
+
+    def test_remove_sdef(self, tmpdir):
+        with as_file(resources_inp.joinpath("test.i")) as FILE1:
+            inp = Input.from_input(FILE1)
+        inp.remove_sdef()
+        assert "SDEF" not in inp.other_data
+
+        # check that the file can be written and read again
+        outfile = tmpdir.mkdir("sub").join("test_sdef_removed.i")
+        inp.write(outfile)
+        newinp = Input.from_input(outfile)
+        assert "SDEF" not in newinp.other_data
+
+    def test_prepare_void_check(self, tmpdir):
+        with as_file(resources_inp.joinpath("test.i")) as FILE1:
+            inp = Input.from_input(FILE1)
+
+        surface = 1
+        # prepare the void cell
+        with pytest.raises(AttributeError):
+            inp.prepare_void_check(surface, 100)
+
+        surface = inp.surfs["2"]
+        with pytest.raises(ValueError):
+            inp.prepare_void_check(surface, 100)
+
+        surface = parser.Card(["12345 SO 10\n"], 4, -1)
+        surface.get_values()
+        particle = "P"
+        inp.prepare_void_check(surface, 100, particle=particle)
+        assert "VOID" in inp.other_data
+        # check that the file can be written and read again
+        outfile = tmpdir.mkdir("sub").join("test_void_check.i")
+        inp.write(outfile)
+        newinp = Input.from_input(outfile)
+        assert (
+            f"SDEF PAR={particle} NRM=-1 SUR={surface.name} WGT=314.159"
+            in newinp.other_data["SDEF"].lines[0]
+        )
+
+    def test_get_formatted_range(self):
+        result = get_formatted_range([1, 2, 3, 4, 5, 7, 12, 13, 21, 22, 23])
+        assert result == "1 3I 5 7 12 13 21 22 23 "
+        result = get_formatted_range([1])
+        assert result == "1 "
+
 
 class TestD1S_Input:
     with (
@@ -749,7 +815,9 @@ class TestD1S_Input:
         reaction_list = self.inp.get_potential_paths(self.lm, "98c")
         assert len(reaction_list) == 32
 
-    @pytest.mark.parametrize(["who", "sign"], [["parent", "-"], ["daughter", ""]])
+    @pytest.mark.parametrize(
+        ["who", "sign"], [["parent", "-"], ["daughter", ""], ["cell", ""]]
+    )
     def test_add_track_contribution(self, tmpdir, who, sign):
         zaids = ["1001", "1002"]
         tallyID = "F124"
@@ -767,3 +835,56 @@ class TestD1S_Input:
             card.lines[-3:], ["FU124 0", sign + "1001", sign + "1002"]
         ):
             assert line.strip() == exp
+        newinp2 = D1S_Input.from_input(tmpfile)
+        newinp2.add_track_contribution(tallyID, ["100", "200"], who=who)
+        if who == "cell":
+            assert "FT124 SCD" in newinp2.other_data["FT124"].lines[0]
+
+    def test_add_father_from_reac(self, tmpdir):
+        tallyID = "F124"
+
+        # --- Test parents---
+        inp = deepcopy(self.inp)
+        # inp.add_daughter_contribution_from_irr(tallyID)
+        inp.add_parent_contribution_from_reac(tallyID)
+        # dump and reread the input
+        tmpfile = os.path.join(tmpdir, "tmp.i")
+        inp.write(tmpfile)
+        newinp = D1S_Input.from_input(tmpfile)
+        # get the new injected card
+        parents = inp.reac_file.get_parents()
+        for line in newinp.other_data["FU124"].lines:
+            if line.startswith("FU124"):
+                assert line.strip() == "FU124 0"
+            else:
+                assert line.strip() in [f"-{p}" for p in parents]
+
+    def test_add_daughter_from_irr(self, tmpdir):
+        tallyID = "F124"
+
+        # --- Test parents---
+        inp = deepcopy(self.inp)
+        inp.add_daughter_contribution_from_irr(tallyID)
+        # dump and reread the input
+        tmpfile = os.path.join(tmpdir, "tmp.i")
+        inp.write(tmpfile)
+        newinp = D1S_Input.from_input(tmpfile)
+        # get the new injected card
+        daughters = inp.irrad_file.get_daughters()
+        for line in newinp.other_data["FU124"].lines:
+            if line.startswith("FU124"):
+                assert line.strip() == "FU124 0"
+            else:
+                assert line.strip() in daughters
+
+    def test_add_SDDR_dose_function(self):
+        tallyID = "F14"
+        inp = deepcopy(self.inp)
+        inp.add_SDDR_dose_function(tallyID)
+        assert "DE14" in inp.other_data
+        assert "DF14" in inp.other_data
+        assert "DE14 0.01 0.015 0.02 0.03 0.04 0.05" in inp.other_data["DE14"].lines[0]
+        assert (
+            "DF14 0.0485 0.1254 0.2050 0.2999 0.3381 0.3572"
+            in inp.other_data["DF14"].lines[0]
+        )

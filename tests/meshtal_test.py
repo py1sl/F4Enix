@@ -57,10 +57,12 @@ class TestMeshtal:
         with as_file(RESOURCES.joinpath("meshtal_cuv")) as inp:
             meshtally = Meshtal(inp, filetype)
 
-        for i in meshtally.mesh.items():
-            meshtally.readMesh(norm=norm)
-            meshtally.readMesh(cell_filters=[1, 2], norm=norm)
-            meshtally.readMesh(cell_filters=[1], norm=norm)
+        meshtally.readMesh(norm=norm)
+        meshtally.readMesh(cell_filters=[1, 2], norm=norm)
+        assert meshtally._meshtal_parser.get_meshlist() == ("44",)
+        bound = meshtally.mesh[44].grid.bounds
+        assert bound[-1] == 5.0
+        meshtally.readMesh(cell_filters=[1], norm=norm)
 
     @pytest.mark.parametrize(
         ["input_meshtal", "length"], [("1D_mesh", 79), ("1D_mesh_energyonly", 175)]
